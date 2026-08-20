@@ -73,9 +73,9 @@ public final class QAnvilMenu extends AnvilMenu {
     }
 
     private static Field findInputSlotsField() {
-        // The field is named inputSlots in the development mappings and q in the
-        // runtime jar. Keep both names here because string literals are not remapped.
-        String[] candidates = {"inputSlots", "f_39782_", "q"};
+        // The field name differs between official, SRG, and obfuscated runtime jars.
+        // Keep the known names here because string literals are not remapped.
+        String[] candidates = {"inputSlots", "f_39769_", "f_39782_", "q"};
         for (String candidate : candidates) {
             try {
                 Field field = net.minecraft.world.inventory.ItemCombinerMenu.class
@@ -84,6 +84,15 @@ public final class QAnvilMenu extends AnvilMenu {
                 return field;
             } catch (NoSuchFieldException ignored) {
                 // Try the next mapping name.
+            }
+        }
+
+        // The input container is the only field declared with the exact Container
+        // type; this keeps the replacement working if a future mapping renames it.
+        for (Field field : net.minecraft.world.inventory.ItemCombinerMenu.class.getDeclaredFields()) {
+            if (field.getType() == net.minecraft.world.Container.class) {
+                field.setAccessible(true);
+                return field;
             }
         }
 
