@@ -36,3 +36,13 @@ QAnvilEvents.update(event => {
 Available event properties include `player`, `left`, `right`, `input`, `addition`, `originalOutput`, `output`, `vanillaLevelCost`, `currencyId`, `currencyCost`, and `healthCost`. `left`/`input` refer to the first slot, while `right`/`addition` refer to the second slot. Call `event.cancel()` to reject the operation. The configured `cost_mode` supplies the default costs. When KubeJS sets either cost property, KubeJS takes control of the cost selection; the other cost is cleared unless the script also sets it. Set a cost to `0` to disable it.
 
 The Q Anvil is obtained in a vanilla smithing table using a Netherite Upgrade Smithing Template, a vanilla anvil, and a netherite ingot. It can also be obtained with `/give @s qanvil:q_anvil`. The recipe uses the vanilla `smithing_transform` type; no custom recipe type is registered.
+
+The KubeJS event also supports the vanilla Forge-style methods:
+
+```js
+event.setOutput(output);
+event.setCost(5);           // direct payment amount in the configured cost mode
+event.setMaterialCost(1);  // number of right-slot items consumed; zero consumes the whole right stack
+```
+
+The equivalent property assignments are supported: `event.output = output`, `event.cost = 5`, and `event.materialCost = 1`.

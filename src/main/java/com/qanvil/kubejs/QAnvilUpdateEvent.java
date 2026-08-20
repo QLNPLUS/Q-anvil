@@ -1,5 +1,6 @@
 package com.qanvil.kubejs;
 
+import com.qanvil.currency.QAnvilCosts;
 import dev.latvian.mods.kubejs.event.EventJS;
 import dev.latvian.mods.kubejs.item.ItemStackJS;
 import net.minecraft.world.item.ItemStack;
@@ -13,6 +14,9 @@ public final class QAnvilUpdateEvent extends EventJS {
     private final int vanillaLevelCost;
     private String currencyId;
     private ItemStack output;
+    private int cost;
+    private int materialCost;
+    private boolean materialCostSet;
     private double currencyCost;
     private double healthCost;
     private boolean currencyCostSet;
@@ -35,6 +39,8 @@ public final class QAnvilUpdateEvent extends EventJS {
         this.addition = addition.copy();
         this.originalOutput = originalOutput.copy();
         this.vanillaLevelCost = vanillaLevelCost;
+        this.cost = vanillaLevelCost;
+        this.materialCost = 0;
         this.currencyId = currencyId;
         this.output = originalOutput.copy();
         this.currencyCost = currencyCost;
@@ -81,6 +87,30 @@ public final class QAnvilUpdateEvent extends EventJS {
         return vanillaLevelCost;
     }
 
+    public int getCost() {
+        return cost;
+    }
+
+    public void setCost(int cost) {
+        this.cost = Math.max(0, cost);
+        if (!currencyCostSet && !healthCostSet) {
+            applyLegacyCost(this.cost);
+        }
+    }
+
+    public int getMaterialCost() {
+        return materialCost;
+    }
+
+    public void setMaterialCost(int materialCost) {
+        this.materialCost = Math.max(0, materialCost);
+        this.materialCostSet = true;
+    }
+
+    public boolean isMaterialCostSet() {
+        return materialCostSet;
+    }
+
     public String getCurrencyId() {
         return currencyId;
     }
@@ -113,6 +143,12 @@ public final class QAnvilUpdateEvent extends EventJS {
         }
         this.healthCost = sanitizeCost(healthCost);
         this.healthCostSet = true;
+    }
+
+    private void applyLegacyCost(int cost) {
+        double amount = cost;
+        this.currencyCost = QAnvilCosts.usesCurrency() ? amount : 0.0D;
+        this.healthCost = QAnvilCosts.usesHealth() ? amount : 0.0D;
     }
 
     private static double sanitizeCost(double cost) {

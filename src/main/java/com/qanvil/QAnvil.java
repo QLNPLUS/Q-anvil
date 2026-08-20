@@ -3,6 +3,7 @@ package com.qanvil;
 import com.qanvil.block.QAnvilBlock;
 import com.qanvil.client.QAnvilClient;
 import com.qanvil.menu.QAnvilMenu;
+import com.qanvil.network.QAnvilNetwork;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
@@ -50,6 +51,7 @@ public final class QAnvil {
         modBus.addListener(QAnvilConfig::onConfigLoad);
 
         QAnvilConfig.register();
+        QAnvilNetwork.init();
         MinecraftForge.EVENT_BUS.register(this);
 
         DistExecutor.unsafeRunWhenOn(net.minecraftforge.api.distmarker.Dist.CLIENT,

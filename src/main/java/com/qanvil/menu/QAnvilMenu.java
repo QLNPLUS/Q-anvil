@@ -6,6 +6,7 @@ import com.qanvil.currency.QAnvilCosts;
 import com.qanvil.currency.QAnvilCurrencyBridge;
 import com.qanvil.kubejs.QAnvilEventData;
 import com.qanvil.kubejs.QAnvilKubeJSBridge;
+import com.qanvil.network.QAnvilNetwork;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AnvilMenu;
@@ -14,7 +15,10 @@ import net.minecraft.world.inventory.DataSlot;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.level.block.state.BlockState;
+
+import java.lang.reflect.Field;
 
 public final class QAnvilMenu extends AnvilMenu {
     private static final int COST_SCALE = 1000;
@@ -23,6 +27,11 @@ public final class QAnvilMenu extends AnvilMenu {
     private final DataSlot healthCost = DataSlot.standalone();
     private final DataSlot currencyIndex = DataSlot.standalone();
     private final DataSlot affordability = DataSlot.standalone();
+    private static final Field INPUT_SLOTS_FIELD = findInputSlotsField();
+    private ItemStack lastLargeLeft = ItemStack.EMPTY;
+    private ItemStack lastLargeRight = ItemStack.EMPTY;
+    private ItemStack lastLargeCarried = ItemStack.EMPTY;
+    private int materialCost = -1;
     private String currencyId;
 
     public QAnvilMenu(int containerId, Inventory inventory, ContainerLevelAccess access) {
@@ -33,6 +42,7 @@ public final class QAnvilMenu extends AnvilMenu {
         addDataSlot(currencyIndex);
         addDataSlot(affordability);
         currencyIndex.set(QAnvilCurrencyBridge.indexOf(currencyId));
+        replaceInputContainer();
         replaceInputSlot(INPUT_SLOT);
         replaceInputSlot(ADDITIONAL_SLOT);
     }
@@ -49,7 +59,53 @@ public final class QAnvilMenu extends AnvilMenu {
 
     private void replaceInputSlot(int slotIndex) {
         Slot vanillaSlot = slots.get(slotIndex);
-        slots.set(slotIndex, new QAnvilInputSlot(inputSlots, slotIndex, vanillaSlot.x, vanillaSlot.y));
+        QAnvilInputSlot replacement = new QAnvilInputSlot(inputSlots, slotIndex, vanillaSlot.x, vanillaSlot.y);
+        replacement.index = vanillaSlot.index;
+        slots.set(slotIndex, replacement);
+    }
+
+    private void replaceInputContainer() {
+        try {
+            INPUT_SLOTS_FIELD.set(this, new QAnvilInputContainer());
+        } catch (IllegalAccessException exception) {
+            throw new IllegalStateException("Unable to replace Q Anvil input container", exception);
+        }
+    }
+
+    private static Field findInputSlotsField() {
+        try {
+            Field field = net.minecraft.world.inventory.ItemCombinerMenu.class.getDeclaredField("inputSlots");
+            field.setAccessible(true);
+            return field;
+        } catch (ReflectiveOperationException exception) {
+            throw new ExceptionInInitializerError(exception);
+        }
+    }
+
+    @Override
+    public void broadcastChanges() {
+        super.broadcastChanges();
+        if (!(player instanceof net.minecraft.server.level.ServerPlayer serverPlayer)) {
+            return;
+        }
+
+        syncLargeStack(serverPlayer, INPUT_SLOT, inputSlots.getItem(INPUT_SLOT), lastLargeLeft);
+        lastLargeLeft = largeStackCopy(inputSlots.getItem(INPUT_SLOT));
+        syncLargeStack(serverPlayer, ADDITIONAL_SLOT, inputSlots.getItem(ADDITIONAL_SLOT), lastLargeRight);
+        lastLargeRight = largeStackCopy(inputSlots.getItem(ADDITIONAL_SLOT));
+        syncLargeStack(serverPlayer, -1, getCarried(), lastLargeCarried);
+        lastLargeCarried = largeStackCopy(getCarried());
+    }
+
+    private void syncLargeStack(net.minecraft.server.level.ServerPlayer player, int slot,
+                                ItemStack current, ItemStack previous) {
+        if (current.getCount() > Byte.MAX_VALUE && !ItemStack.matches(current, previous)) {
+            QAnvilNetwork.sendLargeStack(player, containerId, getStateId(), slot, current);
+        }
+    }
+
+    private static ItemStack largeStackCopy(ItemStack stack) {
+        return stack.getCount() > Byte.MAX_VALUE ? stack.copy() : ItemStack.EMPTY;
     }
 
     @Override
@@ -140,6 +196,7 @@ public final class QAnvilMenu extends AnvilMenu {
                 this.currencyId = event.currencyId;
                 currencyIndex.set(QAnvilCurrencyBridge.indexOf(currencyId));
                 applyCosts(event.currencyCost, event.healthCost);
+                materialCost = event.materialCostSet ? Math.max(0, event.materialCost) : -1;
                 affordability.set(QAnvilCosts.canAfford(serverPlayer, getCurrencyId(),
                         getCurrencyCost(), getHealthCost()) ? 1 : 0);
             }
@@ -159,6 +216,10 @@ public final class QAnvilMenu extends AnvilMenu {
     protected void onTake(Player player, ItemStack stack) {
         if (!QAnvilCosts.charge(player, getCurrencyId(), getCurrencyCost(), getHealthCost())) {
             return;
+        }
+
+        if (materialCost >= 0) {
+            repairItemCountCost = materialCost;
         }
 
         // Let vanilla handle input consumption, repair hooks, and the normal anvil container behavior.
@@ -203,6 +264,7 @@ public final class QAnvilMenu extends AnvilMenu {
         currencyCost.set(0);
         healthCost.set(0);
         affordability.set(0);
+        materialCost = -1;
     }
 
     private static int toNetworkCost(double value) {
@@ -248,6 +310,17 @@ public final class QAnvilMenu extends AnvilMenu {
                 setByPlayer(existing);
             }
             return stack;
+        }
+    }
+
+    private static final class QAnvilInputContainer extends SimpleContainer {
+        private QAnvilInputContainer() {
+            super(2);
+        }
+
+        @Override
+        public int getMaxStackSize() {
+            return QAnvilConfig.maxInputStackSize();
         }
     }
 }

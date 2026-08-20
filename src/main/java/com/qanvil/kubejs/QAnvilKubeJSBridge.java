@@ -27,6 +27,9 @@ public final class QAnvilKubeJSBridge {
             boolean accepted = Boolean.TRUE.equals(post.invoke(null, event));
 
             data.output = ((ItemStack) eventType.getMethod("getOutput").invoke(event)).copy();
+            data.cost = ((Number) eventType.getMethod("getCost").invoke(event)).intValue();
+            data.materialCost = ((Number) eventType.getMethod("getMaterialCost").invoke(event)).intValue();
+            data.materialCostSet = (Boolean) eventType.getMethod("isMaterialCostSet").invoke(event);
             data.currencyId = (String) eventType.getMethod("getCurrencyId").invoke(event);
             data.currencyCost = ((Number) eventType.getMethod("getCurrencyCost").invoke(event)).doubleValue();
             data.healthCost = ((Number) eventType.getMethod("getHealthCost").invoke(event)).doubleValue();
