@@ -1,0 +1,17 @@
+# Gradle and Forge build output
+.gradle/
+build/
+run/
+run-data/
+
+# IDE metadata
+.idea/
+*.iml
+eclipse/
+*.classpath
+*.project
+
+# Local logs and generated data
+logs/
+crash-reports/
+hs_err_pid*.log

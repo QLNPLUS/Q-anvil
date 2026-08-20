@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": {"model": "qanvil:block/q_anvil"},
+    "facing=east": {"model": "qanvil:block/q_anvil", "y": 90},
+    "facing=south": {"model": "qanvil:block/q_anvil", "y": 180},
+    "facing=west": {"model": "qanvil:block/q_anvil", "y": 270}
+  }
+}

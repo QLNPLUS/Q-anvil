@@ -1,0 +1,7 @@
+{
+  "block.qanvil.q_anvil": "Q铁砧",
+  "item.qanvil.q_anvil": "Q铁砧",
+  "gui.qanvil.cost": "费用：%s %s | 生命值：%s",
+  "gui.qanvil.currency_cost": "费用：%s %s",
+  "gui.qanvil.health_cost": "生命值：%s"
+}
