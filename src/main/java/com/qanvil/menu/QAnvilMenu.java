@@ -73,13 +73,22 @@ public final class QAnvilMenu extends AnvilMenu {
     }
 
     private static Field findInputSlotsField() {
-        try {
-            Field field = net.minecraft.world.inventory.ItemCombinerMenu.class.getDeclaredField("inputSlots");
-            field.setAccessible(true);
-            return field;
-        } catch (ReflectiveOperationException exception) {
-            throw new ExceptionInInitializerError(exception);
+        // The field is named inputSlots in the development mappings and q in the
+        // runtime jar. Keep both names here because string literals are not remapped.
+        String[] candidates = {"inputSlots", "f_39782_", "q"};
+        for (String candidate : candidates) {
+            try {
+                Field field = net.minecraft.world.inventory.ItemCombinerMenu.class
+                        .getDeclaredField(candidate);
+                field.setAccessible(true);
+                return field;
+            } catch (NoSuchFieldException ignored) {
+                // Try the next mapping name.
+            }
         }
+
+        throw new ExceptionInInitializerError(
+                new NoSuchFieldException("Unable to find ItemCombinerMenu input container"));
     }
 
     @Override

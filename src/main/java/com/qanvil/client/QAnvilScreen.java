@@ -13,6 +13,10 @@ import net.minecraft.world.inventory.AnvilMenu;
 public final class QAnvilScreen extends AnvilScreen {
     private static final int AFFORDABLE_COLOR = 0x80FF20;
     private static final int UNAFFORDABLE_COLOR = 0xFF6060;
+    private static final int NAME_FIELD_X = 59;
+    private static final int NAME_FIELD_Y = 21;
+    private static final int NAME_FIELD_WIDTH = 110;
+    private static final int NAME_FIELD_HEIGHT = 15;
     private static final ResourceLocation Q_ANVIL_GUI =
             new ResourceLocation(QAnvil.MOD_ID, "textures/gui/q_anvil.png");
 
@@ -23,6 +27,23 @@ public final class QAnvilScreen extends AnvilScreen {
     @Override
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
         graphics.blit(Q_ANVIL_GUI, this.leftPos, this.topPos, 0, 0, this.imageWidth, this.imageHeight);
+
+        QAnvilMenu qAnvilMenu = (QAnvilMenu) this.menu;
+        if (qAnvilMenu.getSlot(0).hasItem()) {
+            renderActiveNameField(graphics);
+        }
+    }
+
+    private void renderActiveNameField(GuiGraphics graphics) {
+        // The supplied GUI texture uses the red rectangle for the inactive state.
+        // Copy the panel material for the active state; the inherited EditBox is
+        // rendered later and keeps its text, cursor, and focus border on top.
+        graphics.blit(Q_ANVIL_GUI,
+                this.leftPos + NAME_FIELD_X,
+                this.topPos + NAME_FIELD_Y,
+                64, 0,
+                NAME_FIELD_WIDTH,
+                NAME_FIELD_HEIGHT);
     }
 
     @Override
