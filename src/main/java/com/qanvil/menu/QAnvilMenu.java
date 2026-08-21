@@ -66,7 +66,7 @@ public final class QAnvilMenu extends AnvilMenu {
 
     private void replaceInputContainer() {
         try {
-            INPUT_SLOTS_FIELD.set(this, new QAnvilInputContainer());
+            INPUT_SLOTS_FIELD.set(this, new QAnvilInputContainer(this));
         } catch (IllegalAccessException exception) {
             throw new IllegalStateException("Unable to replace Q Anvil input container", exception);
         }
@@ -332,13 +332,22 @@ public final class QAnvilMenu extends AnvilMenu {
     }
 
     private static final class QAnvilInputContainer extends SimpleContainer {
-        private QAnvilInputContainer() {
+        private final QAnvilMenu menu;
+
+        private QAnvilInputContainer(QAnvilMenu menu) {
             super(2);
+            this.menu = menu;
         }
 
         @Override
         public int getMaxStackSize() {
             return QAnvilConfig.maxInputStackSize();
+        }
+
+        @Override
+        public void setChanged() {
+            super.setChanged();
+            menu.slotsChanged(this);
         }
     }
 }
