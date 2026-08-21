@@ -14,9 +14,9 @@ public final class QAnvilScreen extends AnvilScreen {
     private static final int AFFORDABLE_COLOR = 0x80FF20;
     private static final int UNAFFORDABLE_COLOR = 0xFF6060;
     private static final int NAME_FIELD_X = 59;
-    private static final int NAME_FIELD_Y = 21;
+    private static final int NAME_FIELD_Y = 20;
     private static final int NAME_FIELD_WIDTH = 110;
-    private static final int NAME_FIELD_HEIGHT = 15;
+    private static final int NAME_FIELD_HEIGHT = 16;
     private static final ResourceLocation Q_ANVIL_GUI =
             new ResourceLocation(QAnvil.MOD_ID, "textures/gui/q_anvil.png");
 
