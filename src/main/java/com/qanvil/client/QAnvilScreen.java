@@ -19,6 +19,10 @@ public final class QAnvilScreen extends AnvilScreen {
     private static final int NAME_FIELD_HEIGHT = 16;
     private static final ResourceLocation Q_ANVIL_GUI =
             new ResourceLocation(QAnvil.MOD_ID, "textures/gui/q_anvil.png");
+    private static final ResourceLocation Q_ANVIL_INPUT_ACTIVE =
+            new ResourceLocation(QAnvil.MOD_ID, "textures/gui/q_anvil_input_active.png");
+    private static final ResourceLocation Q_ANVIL_INPUT_INACTIVE =
+            new ResourceLocation(QAnvil.MOD_ID, "textures/gui/q_anvil_input_inactive.png");
 
     public QAnvilScreen(AnvilMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
@@ -29,19 +33,15 @@ public final class QAnvilScreen extends AnvilScreen {
         graphics.blit(Q_ANVIL_GUI, this.leftPos, this.topPos, 0, 0, this.imageWidth, this.imageHeight);
 
         QAnvilMenu qAnvilMenu = (QAnvilMenu) this.menu;
-        if (qAnvilMenu.getSlot(0).hasItem()) {
-            renderActiveNameField(graphics);
-        }
-    }
-
-    private void renderActiveNameField(GuiGraphics graphics) {
-        // The supplied GUI texture uses the red rectangle for the inactive state.
-        // Copy the panel material for the active state; the inherited EditBox is
-        // rendered later and keeps its text, cursor, and focus border on top.
-        graphics.blit(Q_ANVIL_GUI,
+        ResourceLocation inputTexture = qAnvilMenu.getSlot(0).hasItem()
+                ? Q_ANVIL_INPUT_ACTIVE
+                : Q_ANVIL_INPUT_INACTIVE;
+        graphics.blit(inputTexture,
                 this.leftPos + NAME_FIELD_X,
                 this.topPos + NAME_FIELD_Y,
-                64, 0,
+                0, 0,
+                NAME_FIELD_WIDTH,
+                NAME_FIELD_HEIGHT,
                 NAME_FIELD_WIDTH,
                 NAME_FIELD_HEIGHT);
     }

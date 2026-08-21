@@ -15,6 +15,16 @@ The common config is `config/qanvil-common.toml`:
 
 QShop is optional. With `cost_mode = "health"`, Q Anvil works without QShop. If QShop is installed, the default currency is `coins` unless the config is changed.
 
+## GUI Textures
+
+The GUI textures are in `src/main/resources/assets/qanvil/textures/gui/`:
+
+- `q_anvil.png`: the 256x256 base GUI. It contains the hammer, slots, arrow, borders, and inventory area, but no input-field material.
+- `q_anvil_input_active.png`: the 110x16 input-field texture used when the left input slot contains an item.
+- `q_anvil_input_inactive.png`: the 110x16 input-field texture used when the left input slot is empty.
+
+Edit the two input-field PNGs independently. They are drawn at GUI coordinates `(59, 20)` and are not cropped from the base GUI, so changing them cannot cover or move the other GUI components. The root file `q_anvil_texture_template.png` is only a visual layout reference.
+
 ## KubeJS
 
 KubeJS integration is optional. Put the script in `kubejs/server_scripts/`, for example
