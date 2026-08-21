@@ -15,6 +15,10 @@ The common config is `config/qanvil-common.toml`:
 
 QShop is optional. With `cost_mode = "health"`, Q Anvil works without QShop. If QShop is installed, the default currency is `coins` unless the config is changed.
 
+## CurseForge Description
+
+The English CurseForge short description, full description, and KubeJS examples are in [CURSEFORGE_DESCRIPTION.md](CURSEFORGE_DESCRIPTION.md).
+
 ## GUI Textures
 
 The GUI textures are in `src/main/resources/assets/qanvil/textures/gui/`:
