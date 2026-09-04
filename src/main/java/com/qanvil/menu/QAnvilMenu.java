@@ -15,33 +15,41 @@ import net.minecraft.world.inventory.DataSlot;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.level.block.state.BlockState;
 
 import java.lang.reflect.Field;
+import java.util.Map;
+import java.util.Objects;
 
 public final class QAnvilMenu extends AnvilMenu {
-    private static final int COST_SCALE = 1000;
+    private static final int HEALTH_COST_SCALE = 1000;
 
     private final DataSlot currencyCost = DataSlot.standalone();
     private final DataSlot healthCost = DataSlot.standalone();
-    private final DataSlot currencyIndex = DataSlot.standalone();
     private final DataSlot affordability = DataSlot.standalone();
     private static final Field INPUT_SLOTS_FIELD = findInputSlotsField();
     private ItemStack lastLargeLeft = ItemStack.EMPTY;
     private ItemStack lastLargeRight = ItemStack.EMPTY;
     private ItemStack lastLargeCarried = ItemStack.EMPTY;
+    private String lastPromptText;
+    private String lastSyncedCurrencyId;
+    private String lastSyncedCurrencyDisplayName;
+    private int promptResyncTicks;
     private int materialCost = -1;
     private String currencyId;
+    private String currencyDisplayName;
+    private String promptText = "";
 
     public QAnvilMenu(int containerId, Inventory inventory, ContainerLevelAccess access) {
         super(containerId, inventory, access);
         this.currencyId = QAnvilCosts.resolveCurrencyId();
+        this.currencyDisplayName = QAnvilCurrencyBridge.displayName(currencyId);
         addDataSlot(currencyCost);
         addDataSlot(healthCost);
-        addDataSlot(currencyIndex);
         addDataSlot(affordability);
-        currencyIndex.set(QAnvilCurrencyBridge.indexOf(currencyId));
         replaceInputContainer();
         replaceInputSlot(INPUT_SLOT);
         replaceInputSlot(ADDITIONAL_SLOT);
@@ -107,12 +115,35 @@ public final class QAnvilMenu extends AnvilMenu {
             return;
         }
 
+        syncPromptText(serverPlayer);
+        syncCurrencyInfo(serverPlayer);
         syncLargeStack(serverPlayer, INPUT_SLOT, inputSlots.getItem(INPUT_SLOT), lastLargeLeft);
         lastLargeLeft = largeStackCopy(inputSlots.getItem(INPUT_SLOT));
         syncLargeStack(serverPlayer, ADDITIONAL_SLOT, inputSlots.getItem(ADDITIONAL_SLOT), lastLargeRight);
         lastLargeRight = largeStackCopy(inputSlots.getItem(ADDITIONAL_SLOT));
         syncLargeStack(serverPlayer, -1, getCarried(), lastLargeCarried);
         lastLargeCarried = largeStackCopy(getCarried());
+    }
+
+    private void syncPromptText(net.minecraft.server.level.ServerPlayer player) {
+        boolean changed = !Objects.equals(promptText, lastPromptText);
+        if (changed || (!promptText.isEmpty() && promptResyncTicks-- <= 0)) {
+            QAnvilNetwork.sendPromptText(player, containerId, getStateId(), promptText);
+            lastPromptText = promptText;
+            promptResyncTicks = promptText.isEmpty() ? 0 : 20;
+        }
+    }
+
+    private void syncCurrencyInfo(net.minecraft.server.level.ServerPlayer player) {
+        String displayName = currencyDisplayName == null || currencyDisplayName.isEmpty()
+                ? currencyId : currencyDisplayName;
+        boolean changed = !Objects.equals(currencyId, lastSyncedCurrencyId)
+                || !Objects.equals(displayName, lastSyncedCurrencyDisplayName);
+        if (changed) {
+            QAnvilNetwork.sendCurrencyInfo(player, containerId, getStateId(), currencyId, displayName);
+            lastSyncedCurrencyId = currencyId;
+            lastSyncedCurrencyDisplayName = displayName;
+        }
     }
 
     private void syncLargeStack(net.minecraft.server.level.ServerPlayer player, int slot,
@@ -171,11 +202,14 @@ public final class QAnvilMenu extends AnvilMenu {
     @Override
     public void createResult() {
         super.createResult();
+        restoreOverlevelEnchantments();
 
         ItemStack vanillaOutput = resultSlots.getItem(RESULT_SLOT).copy();
         int vanillaLevelCost = getCost();
-        this.currencyId = QAnvilCosts.resolveCurrencyId();
-        currencyIndex.set(QAnvilCurrencyBridge.indexOf(currencyId));
+        if (!player.level().isClientSide) {
+            this.currencyId = QAnvilCosts.resolveCurrencyId();
+            this.currencyDisplayName = QAnvilCurrencyBridge.displayName(currencyId);
+        }
 
         if (player.level().isClientSide) {
             applyCosts(vanillaOutput.isEmpty() ? 0.0D : QAnvilCosts.defaultCurrencyCost(vanillaLevelCost),
@@ -186,6 +220,7 @@ public final class QAnvilMenu extends AnvilMenu {
 
         ItemStack input = inputSlots.getItem(INPUT_SLOT).copy();
         if (input.isEmpty() || !(player instanceof net.minecraft.server.level.ServerPlayer serverPlayer)) {
+            promptText = "";
             clearCosts();
             setMaximumCost(0);
             return;
@@ -201,7 +236,9 @@ public final class QAnvilMenu extends AnvilMenu {
                 QAnvilCosts.defaultCurrencyCost(vanillaLevelCost),
                 QAnvilCosts.defaultHealthCost(vanillaLevelCost));
 
-        if (!QAnvilKubeJSBridge.post(event)) {
+        boolean accepted = QAnvilKubeJSBridge.post(event);
+        promptText = event.promptText;
+        if (!accepted) {
             resultSlots.setItem(RESULT_SLOT, ItemStack.EMPTY);
             clearCosts();
         } else {
@@ -211,8 +248,9 @@ public final class QAnvilMenu extends AnvilMenu {
                 clearCosts();
             } else {
                 resultSlots.setItem(RESULT_SLOT, output);
-                this.currencyId = event.currencyId;
-                currencyIndex.set(QAnvilCurrencyBridge.indexOf(currencyId));
+                this.currencyId = event.currencyId == null || event.currencyId.isBlank()
+                        ? QAnvilCosts.resolveCurrencyId() : event.currencyId;
+                this.currencyDisplayName = QAnvilCurrencyBridge.displayName(currencyId);
                 applyCosts(event.currencyCost, event.healthCost);
                 materialCost = event.materialCostSet ? Math.max(0, event.materialCost) : -1;
                 affordability.set(QAnvilCosts.canAfford(serverPlayer, getCurrencyId(),
@@ -220,8 +258,60 @@ public final class QAnvilMenu extends AnvilMenu {
             }
         }
 
+        syncCurrencyInfo(serverPlayer);
+
+        // Send the KubeJS prompt immediately. This keeps it visible even when
+        // no vanilla data slot changes during this recalculation.
+        syncPromptText(serverPlayer);
+
         // AnvilMenu's private XP DataSlot is deliberately kept at zero.
         setMaximumCost(0);
+    }
+
+    private void restoreOverlevelEnchantments() {
+        ItemStack result = resultSlots.getItem(RESULT_SLOT);
+        ItemStack input = inputSlots.getItem(INPUT_SLOT);
+        ItemStack addition = inputSlots.getItem(ADDITIONAL_SLOT);
+        if (result.isEmpty() || input.isEmpty() || addition.isEmpty()) {
+            return;
+        }
+
+        Map<Enchantment, Integer> additionEnchantments = EnchantmentHelper.getEnchantments(addition);
+        if (additionEnchantments.isEmpty()) {
+            return;
+        }
+
+        Map<Enchantment, Integer> inputEnchantments = EnchantmentHelper.getEnchantments(input);
+        Map<Enchantment, Integer> resultEnchantments = EnchantmentHelper.getEnchantments(result);
+        boolean changed = false;
+
+        for (Map.Entry<Enchantment, Integer> entry : additionEnchantments.entrySet()) {
+            Enchantment enchantment = entry.getKey();
+            Integer resultLevel = resultEnchantments.get(enchantment);
+            if (enchantment == null || resultLevel == null || entry.getValue() == null) {
+                continue;
+            }
+
+            int inputLevel = Math.max(0, inputEnchantments.getOrDefault(enchantment, 0));
+            int additionLevel = Math.max(0, entry.getValue());
+            if (additionLevel == 0) {
+                continue;
+            }
+
+            long mergedLevel = inputLevel == additionLevel
+                    ? (long) additionLevel + 1L
+                    : Math.max(inputLevel, additionLevel);
+            int restoredLevel = (int) Math.min(Integer.MAX_VALUE, mergedLevel);
+            if (restoredLevel > resultLevel) {
+                resultEnchantments.put(enchantment, restoredLevel);
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            EnchantmentHelper.setEnchantments(resultEnchantments, result);
+            resultSlots.setItem(RESULT_SLOT, result);
+        }
     }
 
     @Override
@@ -247,24 +337,40 @@ public final class QAnvilMenu extends AnvilMenu {
     }
 
     public double getCurrencyCost() {
-        return currencyCost.get() / (double) COST_SCALE;
+        return currencyCost.get();
     }
 
     public double getHealthCost() {
-        return healthCost.get() / (double) COST_SCALE;
+        return healthCost.get() / (double) HEALTH_COST_SCALE;
     }
 
     public String getCurrencyId() {
-        String syncedId = QAnvilCurrencyBridge.idAt(currencyIndex.get());
-        return syncedId == null ? currencyId : syncedId;
+        return currencyId;
     }
 
     public String getCurrencyDisplayName() {
-        return QAnvilCurrencyBridge.displayName(getCurrencyId());
+        return currencyDisplayName == null || currencyDisplayName.isEmpty()
+                ? getCurrencyId() : currencyDisplayName;
     }
 
     public boolean hasQAnvilResult() {
         return !resultSlots.getItem(RESULT_SLOT).isEmpty();
+    }
+
+    public String getPromptText() {
+        return promptText;
+    }
+
+    public void setPromptText(String promptText) {
+        this.promptText = promptText == null ? "" : promptText;
+    }
+
+    public void setCurrencyInfo(String currencyId, String displayName) {
+        if (currencyId != null && !currencyId.isBlank()) {
+            this.currencyId = currencyId;
+        }
+        this.currencyDisplayName = displayName == null || displayName.isEmpty()
+                ? this.currencyId : displayName;
     }
 
     public boolean canAfford(Player player) {
@@ -274,8 +380,8 @@ public final class QAnvilMenu extends AnvilMenu {
     }
 
     private void applyCosts(double currency, double health) {
-        currencyCost.set(toNetworkCost(currency));
-        healthCost.set(toNetworkCost(health));
+        currencyCost.set(toCurrencyNetworkCost(currency));
+        healthCost.set(toHealthNetworkCost(health));
     }
 
     private void clearCosts() {
@@ -285,11 +391,26 @@ public final class QAnvilMenu extends AnvilMenu {
         materialCost = -1;
     }
 
-    private static int toNetworkCost(double value) {
+    private static int toHealthNetworkCost(double value) {
         if (!Double.isFinite(value) || value <= 0.0D) {
             return 0;
         }
-        return (int) Math.min(Integer.MAX_VALUE, Math.round(value * COST_SCALE));
+        return (int) Math.min(Integer.MAX_VALUE, Math.round(value * HEALTH_COST_SCALE));
+    }
+
+    private static int toCurrencyNetworkCost(double value) {
+        double normalized = QAnvilCosts.normalizeCurrencyCost(value);
+        if (!Double.isFinite(normalized) || normalized <= 0.0D) {
+            return 0;
+        }
+        return (int) normalized;
+    }
+
+    private static int inputStackLimit(ItemStack stack) {
+        // Keep genuinely non-stackable items, such as enchanted books, at one.
+        return !stack.isEmpty() && stack.getMaxStackSize() <= 1
+                ? 1
+                : QAnvilConfig.maxInputStackSize();
     }
 
     private static final class QAnvilInputSlot extends Slot {
@@ -304,7 +425,7 @@ public final class QAnvilMenu extends AnvilMenu {
 
         @Override
         public int getMaxStackSize(ItemStack stack) {
-            return QAnvilConfig.maxInputStackSize();
+            return inputStackLimit(stack);
         }
 
         @Override
@@ -342,6 +463,18 @@ public final class QAnvilMenu extends AnvilMenu {
         @Override
         public int getMaxStackSize() {
             return QAnvilConfig.maxInputStackSize();
+        }
+
+        @Override
+        public void setItem(int slot, ItemStack stack) {
+            if (!stack.isEmpty()) {
+                int maxSize = inputStackLimit(stack);
+                if (stack.getCount() > maxSize) {
+                    stack = stack.copy();
+                    stack.setCount(maxSize);
+                }
+            }
+            super.setItem(slot, stack);
         }
 
         @Override

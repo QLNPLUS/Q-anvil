@@ -18,7 +18,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
 import java.util.function.Supplier;
 
 public final class QAnvilNetwork {
-    private static final String PROTOCOL_VERSION = "1";
+    private static final String PROTOCOL_VERSION = "3";
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(QAnvil.MOD_ID, "main"),
             () -> PROTOCOL_VERSION,
@@ -34,6 +34,14 @@ public final class QAnvilNetwork {
                 QAnvilLargeStackSyncPacket::encode,
                 QAnvilLargeStackSyncPacket::decode,
                 QAnvilLargeStackSyncPacket::handle);
+        CHANNEL.registerMessage(nextMessageId++, QAnvilPromptTextSyncPacket.class,
+                QAnvilPromptTextSyncPacket::encode,
+                QAnvilPromptTextSyncPacket::decode,
+                QAnvilPromptTextSyncPacket::handle);
+        CHANNEL.registerMessage(nextMessageId++, QAnvilCurrencyInfoSyncPacket.class,
+                QAnvilCurrencyInfoSyncPacket::encode,
+                QAnvilCurrencyInfoSyncPacket::decode,
+                QAnvilCurrencyInfoSyncPacket::handle);
     }
 
     public static void sendLargeStack(ServerPlayer player, int containerId, int stateId,
@@ -112,10 +120,120 @@ public final class QAnvilNetwork {
             }
 
             Item item = BuiltInRegistries.ITEM.byId(buffer.readVarInt());
-            int count = Math.max(0, Math.min(999, buffer.readVarInt()));
+            int count = Math.max(0, Math.min(9999, buffer.readVarInt()));
             ItemStack stack = new ItemStack(item, count);
             stack.setTag(buffer.readNbt());
             return stack;
+        }
+    }
+
+    public static void sendPromptText(ServerPlayer player, int containerId, int stateId, String text) {
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+                new QAnvilPromptTextSyncPacket(containerId, stateId, text));
+    }
+
+    public static final class QAnvilPromptTextSyncPacket {
+        private final int containerId;
+        private final int stateId;
+        private final String text;
+
+        public QAnvilPromptTextSyncPacket(int containerId, int stateId, String text) {
+            this.containerId = containerId;
+            this.stateId = stateId;
+            this.text = text == null ? "" : text;
+        }
+
+        private static void encode(QAnvilPromptTextSyncPacket packet, FriendlyByteBuf buffer) {
+            buffer.writeVarInt(packet.containerId);
+            buffer.writeVarInt(packet.stateId);
+            buffer.writeUtf(packet.text, 256);
+        }
+
+        private static QAnvilPromptTextSyncPacket decode(FriendlyByteBuf buffer) {
+            return new QAnvilPromptTextSyncPacket(
+                    buffer.readVarInt(),
+                    buffer.readVarInt(),
+                    buffer.readUtf(256));
+        }
+
+        private static void handle(QAnvilPromptTextSyncPacket packet,
+                                   Supplier<NetworkEvent.Context> contextSupplier) {
+            NetworkEvent.Context context = contextSupplier.get();
+            context.enqueueWork(() -> DistExecutor.unsafeRunWhenOn(
+                    Dist.CLIENT, () -> () -> QAnvilClientNetwork.handle(packet)));
+            context.setPacketHandled(true);
+        }
+
+        public int containerId() {
+            return containerId;
+        }
+
+        public int stateId() {
+            return stateId;
+        }
+
+        public String text() {
+            return text;
+        }
+    }
+
+    public static void sendCurrencyInfo(ServerPlayer player, int containerId, int stateId,
+                                        String currencyId, String displayName) {
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+                new QAnvilCurrencyInfoSyncPacket(containerId, stateId, currencyId, displayName));
+    }
+
+    public static final class QAnvilCurrencyInfoSyncPacket {
+        private final int containerId;
+        private final int stateId;
+        private final String currencyId;
+        private final String displayName;
+
+        public QAnvilCurrencyInfoSyncPacket(int containerId, int stateId,
+                                            String currencyId, String displayName) {
+            this.containerId = containerId;
+            this.stateId = stateId;
+            this.currencyId = currencyId == null ? "" : currencyId;
+            this.displayName = displayName == null ? this.currencyId : displayName;
+        }
+
+        private static void encode(QAnvilCurrencyInfoSyncPacket packet, FriendlyByteBuf buffer) {
+            buffer.writeVarInt(packet.containerId);
+            buffer.writeVarInt(packet.stateId);
+            buffer.writeUtf(packet.currencyId, 64);
+            buffer.writeUtf(packet.displayName, 256);
+        }
+
+        private static QAnvilCurrencyInfoSyncPacket decode(FriendlyByteBuf buffer) {
+            return new QAnvilCurrencyInfoSyncPacket(
+                    buffer.readVarInt(),
+                    buffer.readVarInt(),
+                    buffer.readUtf(64),
+                    buffer.readUtf(256));
+        }
+
+        private static void handle(QAnvilCurrencyInfoSyncPacket packet,
+                                   Supplier<NetworkEvent.Context> contextSupplier) {
+            NetworkEvent.Context context = contextSupplier.get();
+            context.enqueueWork(() -> DistExecutor.unsafeRunWhenOn(
+                    Dist.CLIENT, () -> () -> QAnvilClientNetwork.handle(packet)));
+            context.setPacketHandled(true);
+        }
+
+        public int containerId() {
+            return containerId;
+        }
+
+        public int stateId() {
+            return stateId;
+        }
+
+        public String currencyId() {
+            return currencyId;
+        }
+
+        public String displayName() {
+            return displayName;
         }
     }
 }

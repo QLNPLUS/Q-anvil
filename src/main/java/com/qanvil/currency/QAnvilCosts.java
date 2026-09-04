@@ -4,6 +4,8 @@ import com.qanvil.QAnvilConfig;
 import net.minecraft.world.entity.player.Player;
 
 public final class QAnvilCosts {
+    public static final double MAX_CURRENCY_COST = Integer.MAX_VALUE;
+
     private QAnvilCosts() {
     }
 
@@ -19,7 +21,8 @@ public final class QAnvilCosts {
 
     public static double defaultCurrencyCost(int vanillaLevelCost) {
         return usesCurrency() && QAnvilCurrencyBridge.isAvailable()
-                ? Math.max(1, vanillaLevelCost) * QAnvilConfig.CURRENCY_PER_LEVEL.get() : 0.0D;
+                ? normalizeCurrencyCost(Math.max(1, vanillaLevelCost)
+                * QAnvilConfig.CURRENCY_PER_LEVEL.get()) : 0.0D;
     }
 
     public static double defaultHealthCost(int vanillaLevelCost) {
@@ -38,9 +41,12 @@ public final class QAnvilCosts {
         if (player.getAbilities().instabuild) {
             return true;
         }
-        if (currencyCost < 0.0D || healthCost < 0.0D) {
+        if (!Double.isFinite(currencyCost) || !Double.isFinite(healthCost)
+                || currencyCost < 0.0D || healthCost < 0.0D) {
             return false;
         }
+
+        currencyCost = normalizeCurrencyCost(currencyCost);
         if (currencyCost > 0.0D && !QAnvilCurrencyBridge.isAvailable()) {
             return false;
         }
@@ -60,6 +66,7 @@ public final class QAnvilCosts {
         if (player.getAbilities().instabuild) {
             return true;
         }
+        currencyCost = normalizeCurrencyCost(currencyCost);
         if (!canAfford(player, currencyId, currencyCost, healthCost)) {
             return false;
         }
@@ -75,11 +82,30 @@ public final class QAnvilCosts {
     }
 
     public static String formatCurrency(double value) {
+        double normalized = normalizeCurrencyCost(value);
+        if (Double.isFinite(normalized) && normalized >= 0.0D
+                && normalized <= MAX_CURRENCY_COST) {
+            return Long.toString((long) normalized);
+        }
         return QAnvilCurrencyBridge.format(value);
     }
 
     public static boolean currencyAvailable() {
         return QAnvilCurrencyBridge.isAvailable();
+    }
+
+    /** Currency is settled in whole units; round fractional values upward. */
+    public static double normalizeCurrencyCost(double cost) {
+        if (Double.isNaN(cost) || cost < 0.0D) {
+            return cost;
+        }
+        if (cost == 0.0D) {
+            return 0.0D;
+        }
+        if (Double.isInfinite(cost)) {
+            return MAX_CURRENCY_COST;
+        }
+        return Math.min(MAX_CURRENCY_COST, Math.ceil(cost));
     }
 
     private static String mode() {

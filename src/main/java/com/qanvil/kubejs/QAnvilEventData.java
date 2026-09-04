@@ -1,5 +1,6 @@
 package com.qanvil.kubejs;
 
+import com.qanvil.currency.QAnvilCosts;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 
@@ -16,6 +17,7 @@ public final class QAnvilEventData {
     public String currencyId;
     public double currencyCost;
     public double healthCost;
+    public String promptText;
 
     public QAnvilEventData(ServerPlayer player, ItemStack input, ItemStack addition, ItemStack originalOutput,
                            int vanillaLevelCost, String currencyId, double currencyCost, double healthCost) {
@@ -29,7 +31,8 @@ public final class QAnvilEventData {
         this.materialCostSet = false;
         this.output = originalOutput.copy();
         this.currencyId = currencyId;
-        this.currencyCost = currencyCost;
+        this.currencyCost = QAnvilCosts.normalizeCurrencyCost(currencyCost);
         this.healthCost = healthCost;
+        this.promptText = "";
     }
 }

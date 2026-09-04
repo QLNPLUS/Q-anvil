@@ -1,13 +1,18 @@
 package com.qanvil.currency;
 
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.fml.ModList;
 
 import java.util.List;
 
 public final class QAnvilCurrencyBridge {
+    private static final String ADDON_API = "com.qshop.api.QShopAddonApi";
     private static final String CURRENCY_REGISTRY = "com.qshop.currency.CurrencyRegistry";
-    private static final String WALLET_CAPABILITY = "com.qshop.wallet.WalletCapability";
+    private static final ResourceLocation PAYMENT_SOURCE =
+            new ResourceLocation("qanvil", "anvil");
 
     private QAnvilCurrencyBridge() {
     }
@@ -104,14 +109,15 @@ public final class QAnvilCurrencyBridge {
         if (amount <= 0.0D) {
             return true;
         }
-        Object wallet = wallet(player);
-        if (wallet == null) {
+        if (!(player instanceof ServerPlayer serverPlayer)) {
             return false;
         }
         try {
-            Object value = wallet.getClass().getMethod("has", String.class, double.class)
-                    .invoke(wallet, id, amount);
-            return Boolean.TRUE.equals(value);
+            Object service = currencyService();
+            Object balance = service.getClass()
+                    .getMethod("getBalance", ServerPlayer.class, String.class)
+                    .invoke(service, serverPlayer, id);
+            return balance instanceof Number number && number.doubleValue() >= amount;
         } catch (ReflectiveOperationException | LinkageError ignored) {
             return false;
         }
@@ -121,28 +127,23 @@ public final class QAnvilCurrencyBridge {
         if (amount <= 0.0D) {
             return true;
         }
-        Object wallet = wallet(player);
-        if (wallet == null) {
+        if (!(player instanceof ServerPlayer serverPlayer)) {
             return false;
         }
         try {
-            Object value = wallet.getClass().getMethod("take", String.class, double.class)
-                    .invoke(wallet, id, amount);
+            Object service = currencyService();
+            Object value = service.getClass()
+                    .getMethod("withdraw", ServerPlayer.class, String.class, double.class,
+                            ResourceLocation.class, BlockPos.class)
+                    .invoke(service, serverPlayer, id, amount, PAYMENT_SOURCE, null);
             return Boolean.TRUE.equals(value);
         } catch (ReflectiveOperationException | LinkageError ignored) {
             return false;
         }
     }
 
-    private static Object wallet(Player player) {
-        if (!isAvailable()) {
-            return null;
-        }
-        try {
-            return invokeStatic(WALLET_CAPABILITY, "get", Player.class, player);
-        } catch (ReflectiveOperationException | LinkageError ignored) {
-            return null;
-        }
+    private static Object currencyService() throws ReflectiveOperationException {
+        return Class.forName(ADDON_API).getMethod("currency").invoke(null);
     }
 
     private static Object invokeStatic(String className, String methodName, Class<?> parameterType, Object value)

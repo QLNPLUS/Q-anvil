@@ -26,8 +26,8 @@ public final class QAnvilConfig {
             .comment("When true, the anvil cannot be used if paying the health cost would leave the player below one health point.")
             .define("keep_one_health", true);
     public static final ForgeConfigSpec.IntValue MAX_INPUT_STACK_SIZE = BUILDER
-            .comment("Maximum stack size accepted by the Q Anvil left and right input slots. Default 64 preserves vanilla behavior.")
-            .defineInRange("max_input_stack_size", 64, 1, 999);
+            .comment("Maximum stack size for stackable items in the Q Anvil left and right input slots. Items with a native stack limit of 1 remain non-stackable. Default 64 preserves vanilla behavior.")
+            .defineInRange("max_input_stack_size", 64, 1, 9999);
 
     public static final ForgeConfigSpec SPEC = BUILDER.build();
 
@@ -43,6 +43,6 @@ public final class QAnvilConfig {
     }
 
     public static int maxInputStackSize() {
-        return Math.max(1, Math.min(999, MAX_INPUT_STACK_SIZE.get()));
+        return Math.max(1, Math.min(9999, MAX_INPUT_STACK_SIZE.get()));
     }
 }

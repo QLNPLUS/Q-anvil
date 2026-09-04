@@ -59,11 +59,15 @@ public final class QAnvilScreen extends AnvilScreen {
 
     @Override
     protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
-        graphics.drawString(this.font, this.title, this.titleLabelX, this.titleLabelY, 4210752, false);
+        QAnvilMenu qAnvilMenu = (QAnvilMenu) this.menu;
+        String customTitle = qAnvilMenu.getPromptText();
+        Component title = hasCustomTitle(customTitle)
+                ? Component.literal(customTitle)
+                : this.title;
+        graphics.drawString(this.font, title, this.titleLabelX, this.titleLabelY, 4210752, false);
         graphics.drawString(this.font, this.playerInventoryTitle,
                 this.inventoryLabelX, this.inventoryLabelY, 4210752, false);
 
-        QAnvilMenu qAnvilMenu = (QAnvilMenu) this.menu;
         if (!qAnvilMenu.hasQAnvilResult()) {
             return;
         }
@@ -96,5 +100,13 @@ public final class QAnvilScreen extends AnvilScreen {
         int x = Math.max(2, this.imageWidth - 8 - this.font.width(costText));
         graphics.fill(x - 2, 67, this.imageWidth - 8, 79, 1325400064);
         graphics.drawString(this.font, costText, x, 69, color, false);
+    }
+
+    private static boolean hasCustomTitle(String text) {
+        if (text == null || text.isEmpty()
+                || "undefined".equalsIgnoreCase(text) || "null".equalsIgnoreCase(text)) {
+            return false;
+        }
+        return true;
     }
 }

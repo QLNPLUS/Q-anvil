@@ -24,7 +24,10 @@ public final class QAnvilKubeJSBridge {
             Constructor<?> constructor = eventType.getConstructor(QAnvilEventData.class);
             Object event = constructor.newInstance(data);
             Method post = Class.forName(PLUGIN_CLASS).getMethod("post", eventType);
-            boolean accepted = Boolean.TRUE.equals(post.invoke(null, event));
+            Object postResult = post.invoke(null, event);
+            boolean accepted = Boolean.TRUE.equals(postResult.getClass().getMethod("isAccepted").invoke(postResult));
+            Object eventText = postResult.getClass().getMethod("getPromptText").invoke(postResult);
+            data.promptText = eventText == null ? "" : eventText.toString();
 
             data.output = ((ItemStack) eventType.getMethod("getOutput").invoke(event)).copy();
             data.cost = ((Number) eventType.getMethod("getCost").invoke(event)).intValue();

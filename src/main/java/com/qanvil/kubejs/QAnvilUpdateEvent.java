@@ -7,7 +7,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.server.level.ServerPlayer;
 
 public final class QAnvilUpdateEvent extends EventJS {
-    private final ServerPlayer player;
+    public final ServerPlayer player;
     private final ItemStack input;
     private final ItemStack addition;
     private final ItemStack originalOutput;
@@ -21,6 +21,8 @@ public final class QAnvilUpdateEvent extends EventJS {
     private double healthCost;
     private boolean currencyCostSet;
     private boolean healthCostSet;
+    private String promptText;
+    private boolean canceled;
 
     public QAnvilUpdateEvent() {
         this(null, ItemStack.EMPTY, ItemStack.EMPTY, ItemStack.EMPTY, 0, "", 0.0D, 0.0D);
@@ -43,8 +45,10 @@ public final class QAnvilUpdateEvent extends EventJS {
         this.materialCost = 0;
         this.currencyId = currencyId;
         this.output = originalOutput.copy();
-        this.currencyCost = currencyCost;
+        this.currencyCost = QAnvilCosts.normalizeCurrencyCost(currencyCost);
         this.healthCost = healthCost;
+        this.promptText = "";
+        this.canceled = false;
     }
 
     public ServerPlayer getPlayer() {
@@ -129,7 +133,7 @@ public final class QAnvilUpdateEvent extends EventJS {
         if (!currencyCostSet && !healthCostSet) {
             this.healthCost = 0.0D;
         }
-        this.currencyCost = sanitizeCost(currencyCost);
+        this.currencyCost = QAnvilCosts.normalizeCurrencyCost(sanitizeCost(currencyCost));
         this.currencyCostSet = true;
     }
 
@@ -145,6 +149,23 @@ public final class QAnvilUpdateEvent extends EventJS {
         this.healthCostSet = true;
     }
 
+    /** Explicit KubeJS API for setting the GUI title text. */
+    public void setText(Object text) {
+        this.promptText = normalizeText(text == null ? null : text.toString());
+    }
+
+    String getEventText() {
+        return normalizeText(promptText);
+    }
+
+    public boolean isCanceled() {
+        return canceled;
+    }
+
+    public void setCanceled(boolean canceled) {
+        this.canceled = canceled;
+    }
+
     private void applyLegacyCost(int cost) {
         double amount = cost;
         this.currencyCost = QAnvilCosts.usesCurrency() ? amount : 0.0D;
@@ -153,5 +174,16 @@ public final class QAnvilUpdateEvent extends EventJS {
 
     private static double sanitizeCost(double cost) {
         return Double.isFinite(cost) ? Math.max(0.0D, cost) : 0.0D;
+    }
+
+    private static String limitText(String text) {
+        return text.length() <= 256 ? text : text.substring(0, 256);
+    }
+
+    private static String normalizeText(String text) {
+        if (text == null || "undefined".equalsIgnoreCase(text) || "null".equalsIgnoreCase(text)) {
+            return "";
+        }
+        return limitText(text);
     }
 }
