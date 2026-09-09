@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.0
+
+### Fixes
+
+- Fixed enchanted books repeatedly increasing an enchantment beyond its vanilla maximum when combining equal levels.
+
 ## 1.3.0
 
 ### KubeJS

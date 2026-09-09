@@ -298,7 +298,8 @@ public final class QAnvilMenu extends AnvilMenu {
                 continue;
             }
 
-            long mergedLevel = inputLevel == additionLevel
+            int defaultMaxLevel = enchantment.getMaxLevel();
+            long mergedLevel = inputLevel == additionLevel && additionLevel < defaultMaxLevel
                     ? (long) additionLevel + 1L
                     : Math.max(inputLevel, additionLevel);
             int restoredLevel = (int) Math.min(Integer.MAX_VALUE, mergedLevel);
