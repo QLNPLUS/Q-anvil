@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.0
+
+### Fixes
+
+- Fixed repeated anvil combining from increasing an enchantment level beyond its vanilla maximum.
+
 ## 1.4.0
 
 ### Fixes

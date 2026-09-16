@@ -299,10 +299,18 @@ public final class QAnvilMenu extends AnvilMenu {
             }
 
             int defaultMaxLevel = enchantment.getMaxLevel();
-            long mergedLevel = inputLevel == additionLevel && additionLevel < defaultMaxLevel
-                    ? (long) additionLevel + 1L
-                    : Math.max(inputLevel, additionLevel);
-            int restoredLevel = (int) Math.min(Integer.MAX_VALUE, mergedLevel);
+            if (inputLevel <= defaultMaxLevel && additionLevel <= defaultMaxLevel) {
+                // Vanilla already calculated and capped all normal-level merges.
+                // Recomputing the equal-level +1 rule here can make later
+                // recalculations look like another merge and raise the level.
+                continue;
+            }
+
+            // Only restore a level that was already present on one of the
+            // inputs, such as an over-level enchanted book. Never increment an
+            // over-level pair again; that is the source of repeated over-cap
+            // growth when the same result is combined multiple times.
+            int restoredLevel = Math.max(inputLevel, additionLevel);
             if (restoredLevel > resultLevel) {
                 resultEnchantments.put(enchantment, restoredLevel);
                 changed = true;
