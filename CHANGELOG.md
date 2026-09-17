@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.1
+
+### Fixes
+
+- Fixed vanilla anvil results allowing enchantment levels to grow past their normal maximum across repeated recalculations.
+- KubeJS custom outputs are kept unchanged, including intentionally over-level enchantments.
+
 ## 1.5.0
 
 ### Fixes

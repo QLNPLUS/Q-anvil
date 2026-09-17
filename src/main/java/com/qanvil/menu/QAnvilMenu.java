@@ -14,7 +14,12 @@ import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.inventory.DataSlot;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.world.item.EnchantedBookItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.SimpleContainer;
@@ -201,8 +206,10 @@ public final class QAnvilMenu extends AnvilMenu {
 
     @Override
     public void createResult() {
+        ItemStack input = inputSlots.getItem(INPUT_SLOT).copy();
+        ItemStack addition = inputSlots.getItem(ADDITIONAL_SLOT).copy();
         super.createResult();
-        restoreOverlevelEnchantments();
+        normalizeVanillaEnchantmentLevels(resultSlots.getItem(RESULT_SLOT), input, addition);
 
         ItemStack vanillaOutput = resultSlots.getItem(RESULT_SLOT).copy();
         int vanillaLevelCost = getCost();
@@ -218,7 +225,6 @@ public final class QAnvilMenu extends AnvilMenu {
             return;
         }
 
-        ItemStack input = inputSlots.getItem(INPUT_SLOT).copy();
         if (input.isEmpty() || !(player instanceof net.minecraft.server.level.ServerPlayer serverPlayer)) {
             promptText = "";
             clearCosts();
@@ -268,58 +274,46 @@ public final class QAnvilMenu extends AnvilMenu {
         setMaximumCost(0);
     }
 
-    private void restoreOverlevelEnchantments() {
-        ItemStack result = resultSlots.getItem(RESULT_SLOT);
-        ItemStack input = inputSlots.getItem(INPUT_SLOT);
-        ItemStack addition = inputSlots.getItem(ADDITIONAL_SLOT);
-        if (result.isEmpty() || input.isEmpty() || addition.isEmpty()) {
-            return;
-        }
-
-        Map<Enchantment, Integer> additionEnchantments = EnchantmentHelper.getEnchantments(addition);
-        if (additionEnchantments.isEmpty()) {
+    private static void normalizeVanillaEnchantmentLevels(ItemStack result, ItemStack input, ItemStack addition) {
+        if (result.isEmpty()) {
             return;
         }
 
         Map<Enchantment, Integer> inputEnchantments = EnchantmentHelper.getEnchantments(input);
-        Map<Enchantment, Integer> resultEnchantments = EnchantmentHelper.getEnchantments(result);
-        boolean changed = false;
+        Map<Enchantment, Integer> additionEnchantments = EnchantmentHelper.getEnchantments(addition);
+        ListTag enchantments = result.is(Items.ENCHANTED_BOOK)
+                ? EnchantedBookItem.getEnchantments(result)
+                : result.getEnchantmentTags();
 
-        for (Map.Entry<Enchantment, Integer> entry : additionEnchantments.entrySet()) {
-            Enchantment enchantment = entry.getKey();
-            Integer resultLevel = resultEnchantments.get(enchantment);
-            if (enchantment == null || resultLevel == null || entry.getValue() == null) {
+        for (int index = 0; index < enchantments.size(); index++) {
+            CompoundTag enchantmentTag = enchantments.getCompound(index);
+            Enchantment enchantment = BuiltInRegistries.ENCHANTMENT
+                    .getOptional(EnchantmentHelper.getEnchantmentId(enchantmentTag))
+                    .orElse(null);
+            if (enchantment == null) {
                 continue;
             }
 
             int inputLevel = Math.max(0, inputEnchantments.getOrDefault(enchantment, 0));
-            int additionLevel = Math.max(0, entry.getValue());
-            if (additionLevel == 0) {
-                continue;
+            int additionLevel = Math.max(0, additionEnchantments.getOrDefault(enchantment, 0));
+            int maximumLevel = enchantment.getMaxLevel();
+            int currentLevel = EnchantmentHelper.getEnchantmentLevel(enchantmentTag);
+            int normalizedLevel;
+            if (inputLevel > maximumLevel || additionLevel > maximumLevel) {
+                // Preserve an explicitly over-level input, but never let a
+                // previous result level become the next merge's source level.
+                normalizedLevel = Math.max(inputLevel, additionLevel);
+            } else {
+                normalizedLevel = Math.min(currentLevel, maximumLevel);
             }
 
-            int defaultMaxLevel = enchantment.getMaxLevel();
-            if (inputLevel <= defaultMaxLevel && additionLevel <= defaultMaxLevel) {
-                // Vanilla already calculated and capped all normal-level merges.
-                // Recomputing the equal-level +1 rule here can make later
-                // recalculations look like another merge and raise the level.
-                continue;
+            if (normalizedLevel != currentLevel) {
+                // Write directly to the stored-enchantment tag. EnchantedBookItem
+                // intentionally keeps the higher existing level when using
+                // EnchantmentHelper.setEnchantments, so that API cannot enforce
+                // a downward cap on enchanted books.
+                EnchantmentHelper.setEnchantmentLevel(enchantmentTag, normalizedLevel);
             }
-
-            // Only restore a level that was already present on one of the
-            // inputs, such as an over-level enchanted book. Never increment an
-            // over-level pair again; that is the source of repeated over-cap
-            // growth when the same result is combined multiple times.
-            int restoredLevel = Math.max(inputLevel, additionLevel);
-            if (restoredLevel > resultLevel) {
-                resultEnchantments.put(enchantment, restoredLevel);
-                changed = true;
-            }
-        }
-
-        if (changed) {
-            EnchantmentHelper.setEnchantments(resultEnchantments, result);
-            resultSlots.setItem(RESULT_SLOT, result);
         }
     }
 
