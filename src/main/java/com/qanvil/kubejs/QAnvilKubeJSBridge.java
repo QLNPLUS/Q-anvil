@@ -9,6 +9,7 @@ import java.lang.reflect.Method;
 
 public final class QAnvilKubeJSBridge {
     private static final String EVENT_CLASS = "com.qanvil.kubejs.QAnvilUpdateEvent";
+    private static final String TAKE_EVENT_CLASS = "com.qanvil.kubejs.QAnvilTakeEvent";
     private static final String PLUGIN_CLASS = "com.qanvil.kubejs.QAnvilKubeJSPlugin";
 
     private QAnvilKubeJSBridge() {
@@ -36,6 +37,27 @@ public final class QAnvilKubeJSBridge {
             data.currencyId = (String) eventType.getMethod("getCurrencyId").invoke(event);
             data.currencyCost = ((Number) eventType.getMethod("getCurrencyCost").invoke(event)).doubleValue();
             data.healthCost = ((Number) eventType.getMethod("getHealthCost").invoke(event)).doubleValue();
+            return accepted;
+        } catch (ReflectiveOperationException | LinkageError ignored) {
+            // KubeJS is optional. A missing or incompatible integration must not break the anvil itself.
+            return true;
+        }
+    }
+
+    public static boolean postTake(QAnvilTakeEventData data) {
+        if (!ModList.get().isLoaded("kubejs")) {
+            return true;
+        }
+
+        try {
+            Class<?> eventType = Class.forName(TAKE_EVENT_CLASS);
+            Constructor<?> constructor = eventType.getConstructor(QAnvilTakeEventData.class);
+            Object event = constructor.newInstance(data);
+            Method post = Class.forName(PLUGIN_CLASS).getMethod("postTake", eventType);
+            Object postResult = post.invoke(null, event);
+            boolean accepted = Boolean.TRUE.equals(postResult.getClass().getMethod("isAccepted").invoke(postResult));
+
+            data.output = ((ItemStack) eventType.getMethod("getOutput").invoke(event)).copy();
             return accepted;
         } catch (ReflectiveOperationException | LinkageError ignored) {
             // KubeJS is optional. A missing or incompatible integration must not break the anvil itself.

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.0
+
+### KubeJS
+
+- Added `QAnvilEvents.take`, allowing scripts to finalize the result when a player takes it. This supports randomized upgrades without revealing the selected result in the preview.
+
 ## 1.5.1
 
 ### Fixes

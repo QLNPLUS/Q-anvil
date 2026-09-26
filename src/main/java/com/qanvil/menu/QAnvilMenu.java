@@ -6,10 +6,12 @@ import com.qanvil.currency.QAnvilCosts;
 import com.qanvil.currency.QAnvilCurrencyBridge;
 import com.qanvil.kubejs.QAnvilEventData;
 import com.qanvil.kubejs.QAnvilKubeJSBridge;
+import com.qanvil.kubejs.QAnvilTakeEventData;
 import com.qanvil.network.QAnvilNetwork;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AnvilMenu;
+import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.inventory.DataSlot;
 import net.minecraft.world.inventory.MenuType;
@@ -47,6 +49,8 @@ public final class QAnvilMenu extends AnvilMenu {
     private String currencyId;
     private String currencyDisplayName;
     private String promptText = "";
+    private boolean takeEventInProgress;
+    private boolean takeEventCompleted;
 
     public QAnvilMenu(int containerId, Inventory inventory, ContainerLevelAccess access) {
         super(containerId, inventory, access);
@@ -274,6 +278,71 @@ public final class QAnvilMenu extends AnvilMenu {
         setMaximumCost(0);
     }
 
+    @Override
+    public void clicked(int slotId, int button, ClickType clickType, Player player) {
+        if (player.level().isClientSide || slotId != getResultSlot() || !isTakeClick(clickType)
+                || resultSlots.getItem(RESULT_SLOT).isEmpty() || !mayPickup(player, true)) {
+            super.clicked(slotId, button, clickType, player);
+            return;
+        }
+
+        ItemStack previewOutput = resultSlots.getItem(RESULT_SLOT).copy();
+        if (!prepareTakeOutput(player)) {
+            return;
+        }
+
+        boolean previousTakeInProgress = takeEventInProgress;
+        boolean previousTakeCompleted = takeEventCompleted;
+        takeEventInProgress = true;
+        takeEventCompleted = false;
+        try {
+            super.clicked(slotId, button, clickType, player);
+        } finally {
+            if (!takeEventCompleted) {
+                // A click can be rejected after the event ran, for example when the
+                // cursor cannot accept the result. Keep the preview in that case.
+                resultSlots.setItem(RESULT_SLOT, previewOutput);
+            }
+            takeEventInProgress = previousTakeInProgress;
+            takeEventCompleted = previousTakeCompleted;
+        }
+    }
+
+    private static boolean isTakeClick(ClickType clickType) {
+        return clickType == ClickType.PICKUP
+                || clickType == ClickType.QUICK_MOVE
+                || clickType == ClickType.SWAP
+                || clickType == ClickType.THROW
+                || clickType == ClickType.PICKUP_ALL;
+    }
+
+    private boolean prepareTakeOutput(Player player) {
+        if (player.level().isClientSide) {
+            return true;
+        }
+        if (!(player instanceof net.minecraft.server.level.ServerPlayer serverPlayer)) {
+            return false;
+        }
+
+        ItemStack output = resultSlots.getItem(RESULT_SLOT);
+        if (output.isEmpty()) {
+            return false;
+        }
+
+        QAnvilTakeEventData event = new QAnvilTakeEventData(
+                serverPlayer,
+                inputSlots.getItem(INPUT_SLOT),
+                inputSlots.getItem(ADDITIONAL_SLOT),
+                output);
+        if (!QAnvilKubeJSBridge.postTake(event) || event.output.isEmpty()
+                || !QAnvilCosts.canAfford(player, getCurrencyId(), getCurrencyCost(), getHealthCost())) {
+            return false;
+        }
+
+        resultSlots.setItem(RESULT_SLOT, event.output.copy());
+        return true;
+    }
+
     private static void normalizeVanillaEnchantmentLevels(ItemStack result, ItemStack input, ItemStack addition) {
         if (result.isEmpty()) {
             return;
@@ -325,6 +394,9 @@ public final class QAnvilMenu extends AnvilMenu {
 
     @Override
     protected void onTake(Player player, ItemStack stack) {
+        if (takeEventInProgress) {
+            takeEventCompleted = true;
+        }
         if (!QAnvilCosts.charge(player, getCurrencyId(), getCurrencyCost(), getHealthCost())) {
             return;
         }

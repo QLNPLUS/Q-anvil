@@ -32,8 +32,8 @@ Edit the two input-field PNGs independently. They are drawn at GUI coordinates `
 ## KubeJS
 
 KubeJS integration is optional. Put the script in `kubejs/server_scripts/`, for example
-`kubejs/server_scripts/qanvil.js`. The event runs on the server every time the Q Anvil
-recalculates its result: when either input changes, or when the name is edited.
+`kubejs/server_scripts/qanvil.js`. `QAnvilEvents.update` runs on the server every time
+the Q Anvil recalculates its preview: when either input changes, or when the name is edited.
 
 Register the event with:
 
@@ -78,6 +78,26 @@ QAnvilEvents.update(event => {
 The custom title is synchronized from the server to the client. Keep it short enough to fit on
 one line. Use only `event.setText(...)` to set it; assigning `event.text` and returning a string
 from the callback are not supported.
+
+Use `QAnvilEvents.take` for changes that should happen as the result is taken, such as rolling a
+random affix. It runs on the server before the result is transferred and exposes the input,
+addition, player, and current preview as `event.output`:
+
+- `event.left` / `event.input`: the left input.
+- `event.right` / `event.addition`: the right input.
+- `event.player` / `event.getPlayer()`: the player taking the result.
+- `event.output`: the current preview; assign the finalized stack or call `event.setOutput(...)`.
+
+```js
+QAnvilEvents.take(event => {
+  const output = event.output.copy();
+  // Roll and apply the affix to output here.
+  event.output = output;
+});
+```
+
+The result slot keeps its preview if the take action does not complete. A take handler can run
+again on a later attempt, so keep its effects on `event.output`.
 
 When reading numeric values from item NBT, convert them before comparing them. This avoids
 different NBT numeric wrapper types changing the result of a comparison:

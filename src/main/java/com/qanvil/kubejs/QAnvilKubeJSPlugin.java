@@ -16,6 +16,8 @@ public final class QAnvilKubeJSPlugin extends KubeJSPlugin {
     public static final EventGroup QANVIL_EVENTS = EventGroup.of("QAnvilEvents");
     public static final EventHandler UPDATE = QANVIL_EVENTS.server(
             "update", () -> QAnvilUpdateEvent.class);
+    public static final EventHandler TAKE = QANVIL_EVENTS.server(
+            "take", () -> QAnvilTakeEvent.class);
 
     @Override
     public void registerEvents() {
@@ -25,6 +27,7 @@ public final class QAnvilKubeJSPlugin extends KubeJSPlugin {
     @Override
     public void registerClasses(ScriptType type, ClassFilter filter) {
         filter.allow(QAnvilUpdateEvent.class);
+        filter.allow(QAnvilTakeEvent.class);
     }
 
     public static QAnvilKubeJSResult post(QAnvilUpdateEvent event) {
@@ -34,6 +37,15 @@ public final class QAnvilKubeJSPlugin extends KubeJSPlugin {
             UPDATE.forEachListener(ScriptType.STARTUP, listener -> invokeListener(listener, event, state));
         }
         return new QAnvilKubeJSResult(state.accepted, state.text);
+    }
+
+    public static QAnvilKubeJSResult postTake(QAnvilTakeEvent event) {
+        InvocationState state = new InvocationState();
+        TAKE.forEachListener(ScriptType.SERVER, listener -> invokeTakeListener(listener, event, state));
+        if (!state.stopped) {
+            TAKE.forEachListener(ScriptType.STARTUP, listener -> invokeTakeListener(listener, event, state));
+        }
+        return new QAnvilKubeJSResult(state.accepted, "");
     }
 
     private static void invokeListener(EventHandlerContainer listener, QAnvilUpdateEvent event,
@@ -60,6 +72,30 @@ public final class QAnvilKubeJSPlugin extends KubeJSPlugin {
             // Preserve a prompt that was set before a later script statement failed.
             state.text = event.getEventText();
             LOGGER.error("QAnvil KubeJS update handler failed at {}", listener, exception);
+            state.stopped = true;
+        }
+    }
+
+    private static void invokeTakeListener(EventHandlerContainer listener, QAnvilTakeEvent event,
+                                          InvocationState state) {
+        if (state.stopped) {
+            return;
+        }
+
+        try {
+            listener.handler.onEvent(event);
+            if (event.isCanceled()) {
+                state.accepted = false;
+                state.stopped = true;
+            }
+        } catch (EventExit exit) {
+            EventResult result = exit.result;
+            if (result != null) {
+                state.accepted = !result.interruptFalse() && !result.interruptDefault();
+            }
+            state.stopped = true;
+        } catch (Throwable exception) {
+            LOGGER.error("QAnvil KubeJS take handler failed at {}", listener, exception);
             state.stopped = true;
         }
     }
