@@ -14,6 +14,7 @@ It is designed for modpacks that want an anvil system based on survival resource
 
 - Use player health to operate the anvil instead of experience levels.
 - The Q Anvil does not break during normal use.
+- The GUI has a four-slot armor column on its left edge, so equipment can be equipped, removed, and swapped without closing the anvil.
 - Optional integration with [Q Shop](https://www.curseforge.com/minecraft/mc-mods/q-shop). When Q Shop is installed, the Q Anvil can use currency such as `coins` instead of, or together with, health.
 - Configure the default payment mode, currency id, health cost, and currency cost in the common configuration file. Currency charges use whole units; fractional values are rounded up.
 - Input slots support up to 9999 items when `max_input_stack_size` is set to `9999` in `config/qanvil-common.toml`. The default remains 64. Items with a native stack limit of `1`, such as enchanted books, remain limited to one.

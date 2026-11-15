@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.0
+
+### GUI
+
+- Added a four-slot armor column on the left edge of the Q Anvil GUI. It shows the armor the player is wearing, so equipment can be equipped, removed, and swapped without leaving the anvil.
+- Armor slots accept only the matching armor type, keep the Curse of Binding behavior, and fire the normal equipment-change hook when the worn armor changes.
+- Shift-clicking an armor slot moves that piece into the player inventory.
+
 ## 1.6.0
 
 ### KubeJS

@@ -23,11 +23,37 @@ The English CurseForge short description, full description, and KubeJS examples 
 
 The GUI textures are in `src/main/resources/assets/qanvil/textures/gui/`:
 
-- `q_anvil.png`: the 256x256 base GUI. It contains the hammer, slots, arrow, borders, and inventory area, but no input-field material.
+- `q_anvil.png`: the 256x256 base GUI. It contains the hammer, slots, arrow, borders, the armor column, and inventory area, but no input-field material.
 - `q_anvil_input_active.png`: the 110x16 input-field texture used when the left input slot contains an item.
 - `q_anvil_input_inactive.png`: the 110x16 input-field texture used when the left input slot is empty.
 
 Edit the two input-field PNGs independently. They are drawn at GUI coordinates `(59, 20)` and are not cropped from the base GUI, so changing them cannot cover or move the other GUI components. The root file `q_anvil_texture_template.png` is only a visual layout reference.
+
+### Art offset and the armor column
+
+The base GUI keeps the vanilla anvil layout but stores every panel element `32` pixels
+further right inside the texture, which leaves room for the four-slot armor column on the
+left edge of the panel. The screen draws the art `32` pixels to the left to compensate, so
+the vanilla anvil slot, label, and name-field coordinates stay valid:
+
+| Element | Texture position | GUI position |
+| --- | --- | --- |
+| Panel art | `x = 32..207` | `x = 0..175` |
+| Input slots | `(59, 47)`, `(108, 47)` | `(27, 47)`, `(76, 47)` |
+| Result slot | `(166, 47)` | `(134, 47)` |
+| Player inventory | `(40, 84)`, row spacing `18` | `(8, 84)` |
+| Hotbar | `(40, 142)` | `(8, 142)` |
+| Armor column | `x = 18`, `y = 86/104/122/140` | `x = -14`, same `y` |
+| "Too damaged" icon (28x21) | `(208, 0)` | `(99, 45)` |
+
+The armor column hangs `22` pixels off the left edge of the panel. Keep those texture
+positions when editing the base GUI, or update `QAnvilMenu.GUI_ART_OFFSET_X` and the armor
+slot constants together.
+
+The armor column shows the armor the player is wearing. Clicking a slot equips or
+removes equipment immediately, shift-clicking moves a piece into the player inventory,
+and the usual hotbar swap keys work. Only the matching armor type can be placed, and
+items with the Curse of Binding cannot be removed.
 
 ## KubeJS
 

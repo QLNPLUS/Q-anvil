@@ -8,18 +8,23 @@ import com.qanvil.kubejs.QAnvilEventData;
 import com.qanvil.kubejs.QAnvilKubeJSBridge;
 import com.qanvil.kubejs.QAnvilTakeEventData;
 import com.qanvil.network.QAnvilNetwork;
+import com.mojang.datafixers.util.Pair;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AnvilMenu;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.inventory.DataSlot;
+import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.world.item.EnchantedBookItem;
+import net.minecraft.world.item.Equipable;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
@@ -33,6 +38,39 @@ import java.util.Objects;
 
 public final class QAnvilMenu extends AnvilMenu {
     private static final int HEALTH_COST_SCALE = 1000;
+
+    /**
+     * Horizontal offset of every panel element inside the GUI texture. The base
+     * texture stores the panel this many pixels to the right so that the armor
+     * column fits on the left edge of the panel; the screen blits the art back
+     * by the same amount.
+     */
+    public static final int GUI_ART_OFFSET_X = 32;
+
+    private static final int PLAYER_INVENTORY_SLOT_START = RESULT_SLOT + 1;
+    private static final int PLAYER_INVENTORY_SLOT_END = PLAYER_INVENTORY_SLOT_START + 36;
+    private static final int ARMOR_SLOT_START = PLAYER_INVENTORY_SLOT_END;
+    private static final int ARMOR_SLOT_COUNT = 4;
+    private static final int ARMOR_SLOT_END = ARMOR_SLOT_START + ARMOR_SLOT_COUNT;
+
+    // The armor column hangs off the left side of the panel. Its four slots
+    // start at texture coordinates (18, 86) and are spaced like the player
+    // inventory rows, so the GUI coordinate is 18 - GUI_ART_OFFSET_X.
+    private static final int ARMOR_SLOT_X = 18 - GUI_ART_OFFSET_X;
+    private static final int ARMOR_SLOT_Y = 86;
+    private static final int ARMOR_SLOT_SPACING = 18;
+    private static final EquipmentSlot[] ARMOR_EQUIPMENT_SLOTS = {
+            EquipmentSlot.HEAD,
+            EquipmentSlot.CHEST,
+            EquipmentSlot.LEGS,
+            EquipmentSlot.FEET};
+    private static final int[] ARMOR_INVENTORY_SLOTS = {39, 38, 37, 36};
+    // Empty-slot icons, in the same head-to-feet order as the slot column.
+    private static final ResourceLocation[] ARMOR_EMPTY_ICONS = {
+            InventoryMenu.EMPTY_ARMOR_SLOT_HELMET,
+            InventoryMenu.EMPTY_ARMOR_SLOT_CHESTPLATE,
+            InventoryMenu.EMPTY_ARMOR_SLOT_LEGGINGS,
+            InventoryMenu.EMPTY_ARMOR_SLOT_BOOTS};
 
     private final DataSlot currencyCost = DataSlot.standalone();
     private final DataSlot healthCost = DataSlot.standalone();
@@ -62,6 +100,21 @@ public final class QAnvilMenu extends AnvilMenu {
         replaceInputContainer();
         replaceInputSlot(INPUT_SLOT);
         replaceInputSlot(ADDITIONAL_SLOT);
+        addArmorSlots(inventory);
+    }
+
+    private void addArmorSlots(Inventory inventory) {
+        // These slots watch the real player inventory armor entries, so equipping
+        // or unequipping in the Q Anvil changes what the player is wearing.
+        for (int index = 0; index < ARMOR_SLOT_COUNT; index++) {
+            addSlot(new QAnvilArmorSlot(
+                    inventory,
+                    ARMOR_INVENTORY_SLOTS[index],
+                    ARMOR_SLOT_X,
+                    ARMOR_SLOT_Y + index * ARMOR_SLOT_SPACING,
+                    ARMOR_EQUIPMENT_SLOTS[index],
+                    ARMOR_EMPTY_ICONS[index]));
+        }
     }
 
     @Override
@@ -164,6 +217,35 @@ public final class QAnvilMenu extends AnvilMenu {
 
     private static ItemStack largeStackCopy(ItemStack stack) {
         return stack.getCount() > Byte.MAX_VALUE ? stack.copy() : ItemStack.EMPTY;
+    }
+
+    @Override
+    public ItemStack quickMoveStack(Player player, int index) {
+        if (index < ARMOR_SLOT_START || index >= ARMOR_SLOT_END) {
+            return super.quickMoveStack(player, index);
+        }
+
+        // The armor column lives outside the slot ranges the vanilla anvil knows
+        // about, so shift-clicking equipment moves its stack into the player
+        // inventory instead of being ignored.
+        Slot slot = slots.get(index);
+        if (!slot.hasItem()) {
+            return ItemStack.EMPTY;
+        }
+
+        ItemStack stack = slot.getItem();
+        ItemStack moved = stack.copy();
+        if (!moveItemStackTo(stack, PLAYER_INVENTORY_SLOT_START, PLAYER_INVENTORY_SLOT_END, false)) {
+            return ItemStack.EMPTY;
+        }
+
+        if (stack.isEmpty()) {
+            slot.setByPlayer(ItemStack.EMPTY);
+        } else {
+            slot.setChanged();
+        }
+        slot.onTake(player, stack);
+        return moved;
     }
 
     @Override
@@ -486,6 +568,55 @@ public final class QAnvilMenu extends AnvilMenu {
         return !stack.isEmpty() && stack.getMaxStackSize() <= 1
                 ? 1
                 : QAnvilConfig.maxInputStackSize();
+    }
+
+    private static final class QAnvilArmorSlot extends Slot {
+        private final Player owner;
+        private final EquipmentSlot equipmentSlot;
+        private final ResourceLocation emptyIcon;
+
+        private QAnvilArmorSlot(Inventory inventory, int slotIndex, int x, int y,
+                                EquipmentSlot equipmentSlot, ResourceLocation emptyIcon) {
+            super(inventory, slotIndex, x, y);
+            this.owner = inventory.player;
+            this.equipmentSlot = equipmentSlot;
+            this.emptyIcon = emptyIcon;
+        }
+
+        @Override
+        public void setByPlayer(ItemStack stack) {
+            // Vanilla InventoryMenu fires the equip hook with the previous stack
+            // before the slot contents are replaced. Doing the same here keeps
+            // equipment changes, such as attribute updates and Forge events,
+            // identical to equipping through the player inventory.
+            if (Equipable.get(stack) != null) {
+                owner.onEquipItem(equipmentSlot, getItem(), stack);
+            }
+            super.setByPlayer(stack);
+        }
+
+        @Override
+        public int getMaxStackSize() {
+            return 1;
+        }
+
+        @Override
+        public boolean mayPlace(ItemStack stack) {
+            return stack.canEquip(equipmentSlot, owner);
+        }
+
+        @Override
+        public boolean mayPickup(Player player) {
+            ItemStack stack = getItem();
+            return !stack.isEmpty() && !player.isCreative() && EnchantmentHelper.hasBindingCurse(stack)
+                    ? false
+                    : super.mayPickup(player);
+        }
+
+        @Override
+        public Pair<ResourceLocation, ResourceLocation> getNoItemIcon() {
+            return Pair.of(InventoryMenu.BLOCK_ATLAS, emptyIcon);
+        }
     }
 
     private static final class QAnvilInputSlot extends Slot {

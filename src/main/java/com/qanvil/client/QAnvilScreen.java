@@ -17,6 +17,9 @@ public final class QAnvilScreen extends AnvilScreen {
     private static final int NAME_FIELD_Y = 20;
     private static final int NAME_FIELD_WIDTH = 110;
     private static final int NAME_FIELD_HEIGHT = 16;
+    private static final int PANEL_WIDTH = 176;
+    private static final int PANEL_ART_OFFSET_X = QAnvilMenu.GUI_ART_OFFSET_X;
+    private static final int ERROR_ICON_U = PANEL_ART_OFFSET_X + PANEL_WIDTH;
     private static final ResourceLocation Q_ANVIL_GUI =
             new ResourceLocation(QAnvil.MOD_ID, "textures/gui/q_anvil.png");
     private static final ResourceLocation Q_ANVIL_INPUT_ACTIVE =
@@ -30,7 +33,17 @@ public final class QAnvilScreen extends AnvilScreen {
 
     @Override
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
-        graphics.blit(Q_ANVIL_GUI, this.leftPos, this.topPos, 0, 0, this.imageWidth, this.imageHeight);
+        // The base texture stores every panel element PANEL_ART_OFFSET_X pixels to the
+        // right, which leaves room for the armor column on the left edge of the panel.
+        // Drawing the art that far left keeps the vanilla anvil slot, label, and name
+        // field coordinates unchanged. The error icon sits right of the panel art, so
+        // it is blitted separately and stays out of this call.
+        graphics.blit(Q_ANVIL_GUI,
+                this.leftPos - PANEL_ART_OFFSET_X,
+                this.topPos,
+                0, 0,
+                PANEL_ART_OFFSET_X + PANEL_WIDTH,
+                this.imageHeight);
 
         QAnvilMenu qAnvilMenu = (QAnvilMenu) this.menu;
         ResourceLocation inputTexture = qAnvilMenu.getSlot(0).hasItem()
@@ -54,7 +67,7 @@ public final class QAnvilScreen extends AnvilScreen {
             return;
         }
 
-        graphics.blit(Q_ANVIL_GUI, x + 99, y + 45, this.imageWidth, 0, 28, 21);
+        graphics.blit(Q_ANVIL_GUI, x + 99, y + 45, ERROR_ICON_U, 0, 28, 21);
     }
 
     @Override
